@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>THE TRUE YAMANOTE — 山手線 実寸比較マップ</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #121212;
+            --bg-panel: #1a1a1a;
+            --bg-card: #242424;
+            --border-color: #333333;
+            --accent-green: #70b62c;
+            --accent-blue: #00bcd4;
+            --text-main: #e0e0e0;
+            --text-sub: #888888;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body, html {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            font-family: 'Noto Sans JP', 'JetBrains Mono', sans-serif;
+            background: var(--bg-base);
+            color: var(--text-main);
+            font-size: 12px;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+            background: #111;
+        }
+
+        /* 角丸なしのソリッドパネル */
+        .solid-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+            border-radius: 0px;
+        }
+
+        /* 上部ツールバー */
+        .top-toolbar {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 1000;
+            display: flex;
+            align-items: stretch;
+            gap: 8px;
+        }
+
+        .system-badge {
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 0px;
+        }
+
+        .system-badge .line-icon {
+            width: 10px;
+            height: 10px;
+            background: var(--accent-green);
+        }
+
+        .system-title {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            color: #fff;
+        }
+
+        /* 検索ボックス */
+        .search-box-wrapper {
+            position: relative;
+            width: 270px;
+        }
+
+        .search-input {
+            width: 100%;
+            height: 100%;
+            padding: 8px 12px;
+            border-radius: 0px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-panel);
+            color: #fff;
+            font-family: inherit;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-green);
+        }
+
+        .search-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-top: none;
+            max-height: 220px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1001;
+        }
+
+        .search-item {
+            padding: 8px 10px;
+            font-size: 11.5px;
+            border-bottom: 1px solid #282828;
+            cursor: pointer;
+            color: #bbb;
+        }
+
+        .search-item:hover {
+            background: #252525;
+            color: #fff;
+        }
+
+        /* 右側操作ドック */
+        .control-dock {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            bottom: 12px;
+            width: 310px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            padding: 14px;
+            gap: 12px;
+            overflow-y: auto;
+        }
+
+        .dock-section {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .section-header {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: var(--text-sub);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* スペックグリッド */
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .metric-cell {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 8px 10px;
+            border-radius: 0px;
+        }
+
+        .metric-title {
+            font-size: 10px;
+            color: var(--text-sub);
+        }
+
+        .metric-num {
+            font-size: 14px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-green);
+            margin-top: 2px;
+        }
+
+        .metric-num span {
+            font-size: 10px;
+            font-weight: 400;
+            color: var(--text-sub);
+            margin-left: 2px;
+        }
+
+        /* スライダー */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-label-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11.5px;
+            color: #bbb;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 2px;
+            background: #333;
+            outline: none;
+            margin: 6px 0;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: var(--accent-green);
+            cursor: pointer;
+            border-radius: 0px;
+        }
+
+        /* ボタン */
+        .btn-group-row {
+            display: flex;
+            gap: 4px;
+        }
+
+        .btn-solid {
+            flex: 1;
+            padding: 7px 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 11.5px;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: center;
+            border-radius: 0px;
+            transition: background 0.1s;
+        }
+
+        .btn-solid:hover {
+            background: #2c2c2c;
+            border-color: #555;
+        }
+
+        .btn-solid.active {
+            background: #333;
+            border-color: var(--accent-green);
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .btn-action-primary {
+            background: var(--accent-green);
+            color: #000;
+            font-weight: 700;
+            border: 1px solid var(--accent-green);
+        }
+
+        .btn-action-primary:hover {
+            background: #5f9e24;
+        }
+
+        /* 比較スポットグリッド */
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px;
+        }
+
+        .preset-cell {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 6px 8px;
+            font-size: 11.5px;
+            color: #ccc;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 0px;
+        }
+
+        .preset-cell:hover {
+            background: #2a2a2a;
+            border-color: #555;
+            color: #fff;
+        }
+
+        .preset-tag {
+            font-size: 9.5px;
+            color: var(--text-sub);
+        }
+
+        /* 地図上の駅ラベル */
+        .leaflet-tooltip.station-cad-label {
+            background: #111 !important;
+            border: 1px solid #444 !important;
+            color: #fff !important;
+            font-family: 'JetBrains Mono', 'Noto Sans JP', monospace !important;
+            font-size: 10px !important;
+            border-radius: 0px !important;
+            padding: 2px 5px !important;
+            box-shadow: none !important;
+        }
+        .leaflet-tooltip.station-cad-label::before {
+            display: none !important;
+        }
+
+        /* 駅ノード */
+        .station-square-node {
+            width: 6px;
+            height: 6px;
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .station-square-node.major {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border: 1px solid #fff;
+        }
+
+        /* 下部ステータス */
+        #status-banner {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            z-index: 1000;
+            padding: 6px 10px;
+            font-size: 11px;
+            background: #181818;
+            border: 1px solid #333;
+            color: #888;
+            border-radius: 0px;
+        }
+
+        @media (max-width: 768px) {
+            .top-toolbar {
+                flex-direction: column;
+                right: 12px;
+            }
+            .search-box-wrapper {
+                width: 100%;
+            }
+            .control-dock {
+                top: auto;
+                left: 12px;
+                right: 12px;
+                bottom: 12px;
+                width: auto;
+                max-height: 40vh;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <!-- 上部検索バー -->
+    <div class="top-toolbar">
+        <div class="system-badge solid-panel">
+            <div class="line-icon"></div>
+            <div class="system-title">THE TRUE YAMANOTE</div>
+        </div>
+
+        <div class="search-box-wrapper solid-panel">
+            <input type="text" id="geo-search" class="search-input" placeholder="世界中の都市・地名を検索..." autocomplete="off">
+            <div id="search-dropdown" class="search-dropdown"></div>
+        </div>
+    </div>
+
+    <!-- 右側操作パネル -->
+    <div class="control-dock solid-panel">
+        
+        <!-- スペック情報 -->
+        <div class="dock-section">
+            <div class="section-header">山手線スペック (精密実線路データ)</div>
+            <div class="metric-grid">
+                <div class="metric-cell">
+                    <div class="metric-title">内側面積</div>
+                    <div class="metric-num">63.0<span>km²</span></div>
+                </div>
+                <div class="metric-cell">
+                    <div class="metric-title">ドーム換算</div>
+                    <div class="metric-num">~1,350<span>個分</span></div>
+                </div>
+                <div class="metric-cell">
+                    <div class="metric-title">一周の路線長</div>
+                    <div class="metric-num">34.6<span>km</span></div>
+                </div>
+                <div class="metric-cell">
+                    <div class="metric-title">線路頂点数</div>
+                    <div class="metric-num" id="stat-vertices">642<span>点</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 形状・角度調整 -->
+        <div class="dock-section">
+            <div class="section-header">カスタマイズ</div>
+            
+            <div class="control-group">
+                <div class="control-label-row">
+                    <span>回転角度</span>
+                    <span id="disp-rot" style="color:var(--accent-green); font-family:'JetBrains Mono';">0°</span>
+                </div>
+                <input type="range" id="slider-rot" min="0" max="360" value="0">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label-row">
+                    <span>内側の透明度</span>
+                    <span id="disp-opacity" style="color:var(--accent-green); font-family:'JetBrains Mono';">30%</span>
+                </div>
+                <input type="range" id="slider-opacity" min="0" max="100" value="30">
+            </div>
+        </div>
+
+        <!-- 駅名表示モード -->
+        <div class="dock-section">
+            <div class="section-header">駅名ラベル表示</div>
+            <div class="btn-group-row">
+                <button class="btn-solid active" onclick="setStationMode('major', this)">主要駅のみ</button>
+                <button class="btn-solid" onclick="setStationMode('all', this)">全30駅</button>
+                <button class="btn-solid" onclick="setStationMode('none', this)">非表示</button>
+            </div>
+        </div>
+
+        <!-- 複数スタンプ -->
+        <div class="dock-section">
+            <div class="section-header">
+                <span>複数配置</span>
+                <span id="stat-instances" style="font-family:'JetBrains Mono'; color:var(--accent-green);">1個表示中</span>
+            </div>
+            <div class="btn-group-row">
+                <button class="btn-solid btn-action-primary" onclick="addLoopAtCenter()">＋ 山手線を追加</button>
+                <button class="btn-solid" onclick="resetLoops()">リセット</button>
+            </div>
+            <div style="font-size:10px; color:var(--text-sub); margin-top:2px;">
+                ※ 地図上を右クリック（長押し）でもその場に追加できます。
+            </div>
+        </div>
+
+        <!-- 比較スポット -->
+        <div class="dock-section">
+            <div class="section-header">世界の比較スポット</div>
+            <div class="preset-grid">
+                <div class="preset-cell" onclick="jumpTo(35.68712, 139.73559, 11)">
+                    <span>東京（原点）</span><span class="preset-tag">原寸</span>
+                </div>
+                <div class="preset-cell" onclick="jumpTo(35.2500, 136.0800, 10)">
+                    <span>琵琶湖</span><span class="preset-tag">約10倍</span>
+                </div>
+                <div class="preset-cell" onclick="jumpTo(34.2250, 135.1670, 11)">
+                    <span>和歌山市</span><span class="preset-tag">中心部</span>
+                </div>
+                <div class="preset-cell" onclick="jumpTo(34.6937, 135.5023, 11)">
+                    <span>大阪環状線</span><span class="preset-tag">約1/2</span>
+                </div>
+                <div class="preset-cell" onclick="jumpTo(40.7831, -73.9662, 11)">
+                    <span>NYマンハッタン</span><span class="preset-tag">ほぼ同等</span>
+                </div>
+                <div class="preset-cell" onclick="jumpTo(48.8566, 2.3522, 11)">
+                    <span>パリ市街</span><span class="preset-tag">約1.4倍</span>
+                </div>
+                <div class="preset-cell" onclick="jumpTo(51.5074, -0.1278, 11)">
+                    <span>ロンドン</span><span class="preset-tag">北緯51°</span>
+                </div>
+                <div class="preset-cell" onclick="jumpTo(72.0000, -40.0000, 6)">
+                    <span>グリーンランド</span><span class="preset-tag">北極圏</span>
+                </div>
+                <div class="preset-cell" onclick="jumpTo(-69.0000, 39.5800, 6)">
+                    <span>南極 昭和基地</span><span class="preset-tag">南極圏</span>
+                </div>
+                <div class="preset-cell" onclick="jumpTo(1.3521, 103.8198, 10)">
+                    <span>シンガポール</span><span class="preset-tag">赤道直下</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- マップスタイル切替 -->
+        <div class="dock-section">
+            <div class="section-header">マップスタイル</div>
+            <div class="btn-group-row">
+                <button class="btn-solid active" onclick="setTileStyle('dark', this)">ダーク</button>
+                <button class="btn-solid" onclick="setTileStyle('light', this)">ライト</button>
+                <button class="btn-solid" onclick="setTileStyle('satellite', this)">航空写真</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ステータスバー -->
+    <div id="status-banner">
+        <span id="status-text">JSON読み込み中...</span>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const R = 6371000.0;
+        let globalAngle = 0;
+        let globalOpacity = 0.30;
+        let stationDisplayMode = 'major';
+
+        let rawTrackCoords = [];
+        let originCenter = { lat: 35.687120, lng: 139.735592 };
+        let meterOffsets = [];
+
+        const stationsBase = [
+            { code: "JY01", name: "東京", en: "Tokyo", major: true, lat: 35.681236, lng: 139.767125 },
+            { code: "JY02", name: "神田", en: "Kanda", major: false, lat: 35.691690, lng: 139.770883 },
+            { code: "JY03", name: "秋葉原", en: "Akihabara", major: true, lat: 35.698383, lng: 139.773072 },
+            { code: "JY04", name: "御徒町", en: "Okachimachi", major: false, lat: 35.707438, lng: 139.774632 },
+            { code: "JY05", name: "上野", en: "Ueno", major: true, lat: 35.714167, lng: 139.777222 },
+            { code: "JY06", name: "鶯谷", en: "Uguisudani", major: false, lat: 35.720495, lng: 139.778835 },
+            { code: "JY07", name: "日暮里", en: "Nippori", major: true, lat: 35.728148, lng: 139.770641 },
+            { code: "JY08", name: "西日暮里", en: "Nishi-Nippori", major: false, lat: 35.732135, lng: 139.766787 },
+            { code: "JY09", name: "田端", en: "Tabata", major: false, lat: 35.738159, lng: 139.760845 },
+            { code: "JY10", name: "駒込", en: "Komagome", major: false, lat: 35.736489, lng: 139.746875 },
+            { code: "JY11", name: "巣鴨", en: "Sugamo", major: false, lat: 35.733492, lng: 139.739345 },
+            { code: "JY12", name: "大塚", en: "Otsuka", major: false, lat: 35.731401, lng: 139.728662 },
+            { code: "JY13", name: "池袋", en: "Ikebukuro", major: true, lat: 35.729503, lng: 139.710900 },
+            { code: "JY14", name: "目白", en: "Mejiro", major: false, lat: 35.721204, lng: 139.706587 },
+            { code: "JY15", name: "高田馬場", en: "Takadanobaba", major: true, lat: 35.712285, lng: 139.703782 },
+            { code: "JY16", name: "新大久保", en: "Shin-Okubo", major: false, lat: 35.701306, lng: 139.700044 },
+            { code: "JY17", name: "新宿", en: "Shinjuku", major: true, lat: 35.690921, lng: 139.700258 },
+            { code: "JY18", name: "代々木", en: "Yoyogi", major: false, lat: 35.683061, lng: 139.702042 },
+            { code: "JY19", name: "原宿", en: "Harajuku", major: true, lat: 35.670168, lng: 139.702687 },
+            { code: "JY20", name: "渋谷", en: "Shibuya", major: true, lat: 35.658034, lng: 139.701636 },
+            { code: "JY21", name: "恵比寿", en: "Ebisu", major: true, lat: 35.646690, lng: 139.710106 },
+            { code: "JY22", name: "目黒", en: "Meguro", major: true, lat: 35.633998, lng: 139.715828 },
+            { code: "JY23", name: "五反田", en: "Gotanda", major: false, lat: 35.626446, lng: 139.723822 },
+            { code: "JY24", name: "大崎", en: "Osaki", major: true, lat: 35.619700, lng: 139.728553 },
+            { code: "JY25", name: "品川", en: "Shinagawa", major: true, lat: 35.628471, lng: 139.738760 },
+            { code: "JY26", name: "高輪ゲートウェイ", en: "Takanawa Gateway", major: false, lat: 35.635500, lng: 139.740700 },
+            { code: "JY27", name: "田町", en: "Tamachi", major: false, lat: 35.645736, lng: 139.747575 },
+            { code: "JY28", name: "浜松町", en: "Hamamatsucho", major: true, lat: 35.655646, lng: 139.757135 },
+            { code: "JY29", name: "新橋", en: "Shimbashi", major: true, lat: 35.666324, lng: 139.758340 },
+            { code: "JY30", name: "有楽町", en: "Yurakucho", major: false, lat: 35.675069, lng: 139.763328 }
+        ];
+
+        let stationOffsets = [];
+
+        const tileLayers = {
+            dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO', maxZoom: 19 }),
+            light: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO', maxZoom: 19 }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri', maxZoom: 18 })
+        };
+
+        const map = L.map('map', {
+            center: [35.68712, 139.73559],
+            zoom: 11,
+            layers: [tileLayers.dark],
+            zoomControl: false,
+            worldCopyJump: true
+        });
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        let yamanoteLoops = [];
+
+        class YamanoteInstance {
+            constructor(centerLat, centerLng, isPrimary = false) {
+                this.lat = centerLat;
+                this.lng = centerLng;
+                this.angle = globalAngle;
+                this.isPrimary = isPrimary;
+                this.stationMarkers = [];
+
+                this.polygon = L.polygon([], {
+                    color: isPrimary ? '#70b62c' : '#00bcd4',
+                    fillColor: isPrimary ? '#70b62c' : '#00bcd4',
+                    fillOpacity: globalOpacity,
+                    weight: 2.5,
+                    dashArray: isPrimary ? null : '4, 4'
+                }).addTo(map);
+
+                const iconHtml = `<div style="
+                    width: 14px; height: 14px;
+                    background: ${isPrimary ? '#70b62c' : '#00bcd4'};
+                    border: 2px solid #ffffff;
+                    cursor: move;
+                "></div>`;
+
+                this.centerMarker = L.marker([this.lat, this.lng], {
+                    draggable: true,
+                    icon: L.divIcon({ html: iconHtml, className: '', iconSize: [14, 14], iconAnchor: [7, 7] })
+                }).addTo(map);
+
+                this.centerMarker.on('drag', (e) => {
+                    this.lat = e.latlng.lat;
+                    this.lng = e.latlng.lng;
+                    this.update();
+                });
+
+                this.update();
+            }
+
+            // メルカトル図法の緯度歪み補正：北極や南極に近づくと地図の拡大率に合わせて正しく巨大化
+            calculateTrackCoords() {
+                const isAtOrigin = Math.abs(this.lat - originCenter.lat) < 0.0001 &&
+                                   Math.abs(this.lng - originCenter.lng) < 0.0001 &&
+                                   this.angle === 0;
+                if (isAtOrigin && rawTrackCoords.length > 0) {
+                    return rawTrackCoords;
+                }
+
+                if (meterOffsets.length === 0) return [];
+
+                const clampedLat = Math.max(-85, Math.min(85, this.lat));
+                const radAngle = (this.angle * Math.PI) / 180;
+                const latRad = (clampedLat * Math.PI) / 180;
+                const cosLat = Math.cos(latRad) || 0.0001;
+
+                return meterOffsets.map(([dx, dy]) => {
+                    const rx = dx * Math.cos(radAngle) - dy * Math.sin(radAngle);
+                    const ry = dx * Math.sin(radAngle) + dy * Math.cos(radAngle);
+                    const dLat = (ry / R) * (180 / Math.PI);
+                    const dLng = (rx / (R * cosLat)) * (180 / Math.PI);
+                    return [clampedLat + dLat, this.lng + dLng];
+                });
+            }
+
+            calculateStationCoords() {
+                if (stationOffsets.length === 0) return [];
+
+                const clampedLat = Math.max(-85, Math.min(85, this.lat));
+                const radAngle = (this.angle * Math.PI) / 180;
+                const latRad = (clampedLat * Math.PI) / 180;
+                const cosLat = Math.cos(latRad) || 0.0001;
+
+                return stationOffsets.map(st => {
+                    const rx = st.dx * Math.cos(radAngle) - st.dy * Math.sin(radAngle);
+                    const ry = st.dx * Math.sin(radAngle) + st.dy * Math.cos(radAngle);
+                    const dLat = (ry / R) * (180 / Math.PI);
+                    const dLng = (rx / (R * cosLat)) * (180 / Math.PI);
+                    return { ...st, lat: clampedLat + dLat, lng: this.lng + dLng };
+                });
+            }
+
+            update() {
+                const trackPts = this.calculateTrackCoords();
+                if (trackPts.length > 0) {
+                    this.polygon.setLatLngs(trackPts);
+                    this.polygon.setStyle({ fillOpacity: globalOpacity });
+                }
+
+                this.stationMarkers.forEach(m => map.removeLayer(m));
+                this.stationMarkers = [];
+
+                if (stationDisplayMode !== 'none') {
+                    const stList = this.calculateStationCoords();
+                    stList.forEach(st => {
+                        const showLabel = (stationDisplayMode === 'all') || (stationDisplayMode === 'major' && st.major);
+
+                        const nodeHtml = `<div class="station-square-node ${st.major ? 'major' : ''}"></div>`;
+                        const marker = L.marker([st.lat, st.lng], {
+                            icon: L.divIcon({ html: nodeHtml, className: '', iconSize: [8, 8], iconAnchor: [4, 4] })
+                        }).addTo(map);
+
+                        if (showLabel && map.getZoom() >= 8) {
+                            marker.bindTooltip(`[${st.code}] ${st.name}`, {
+                                permanent: true,
+                                direction: 'top',
+                                className: 'station-cad-label',
+                                offset: [0, -4]
+                            });
+                        }
+                        this.stationMarkers.push(marker);
+                    });
+                }
+            }
+
+            destroy() {
+                map.removeLayer(this.polygon);
+                map.removeLayer(this.centerMarker);
+                this.stationMarkers.forEach(m => map.removeLayer(m));
+            }
+        }
+
+        // JSON読み込み
+        async function loadData() {
+            const statusText = document.getElementById('status-text');
+            try {
+                const res = await fetch('./yamanote-data.json');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                rawTrackCoords = data.coordinates;
+                if (data.originCenter) {
+                    originCenter = data.originCenter;
+                }
+
+                const origLatRad = originCenter.lat * Math.PI / 180.0;
+                meterOffsets = rawTrackCoords.map(([lat, lng]) => {
+                    const dy = (lat - originCenter.lat) * (Math.PI / 180.0) * R;
+                    const dx = (lng - originCenter.lng) * (Math.PI / 180.0) * R * Math.cos(origLatRad);
+                    return [dx, dy];
+                });
+
+                stationOffsets = stationsBase.map(st => {
+                    const dy = (st.lat - originCenter.lat) * (Math.PI / 180.0) * R;
+                    const dx = (st.lng - originCenter.lng) * (Math.PI / 180.0) * R * Math.cos(origLatRad);
+                    return { ...st, dx, dy };
+                });
+
+                document.getElementById('stat-vertices').innerHTML = `${rawTrackCoords.length}<span>点</span>`;
+                statusText.innerText = `準備完了: ${rawTrackCoords.length} 点の生座標データを読み込みました`;
+
+                yamanoteLoops.push(new YamanoteInstance(originCenter.lat, originCenter.lng, true));
+            } catch (err) {
+                statusText.innerText = `エラー: yamanote-data.json の読み込みに失敗しました (${err.message})`;
+                console.error(err);
+            }
+        }
+
+        loadData();
+
+        window.addLoopAtCenter = function() {
+            const c = map.getCenter();
+            yamanoteLoops.push(new YamanoteInstance(c.lat, c.lng, false));
+            document.getElementById('stat-instances').innerText = `${yamanoteLoops.length}個表示中`;
+        };
+
+        window.resetLoops = function() {
+            while (yamanoteLoops.length > 1) {
+                yamanoteLoops.pop().destroy();
+            }
+            document.getElementById('stat-instances').innerText = '1個表示中';
+        };
+
+        map.on('contextmenu', (e) => {
+            yamanoteLoops.push(new YamanoteInstance(e.latlng.lat, e.latlng.lng, false));
+            document.getElementById('stat-instances').innerText = `${yamanoteLoops.length}個表示中`;
+        });
+
+        document.getElementById('slider-rot').addEventListener('input', (e) => {
+            globalAngle = parseFloat(e.target.value);
+            document.getElementById('disp-rot').innerText = `${globalAngle}°`;
+            yamanoteLoops.forEach(l => { l.angle = globalAngle; l.update(); });
+        });
+
+        document.getElementById('slider-opacity').addEventListener('input', (e) => {
+            globalOpacity = parseFloat(e.target.value) / 100;
+            document.getElementById('disp-opacity').innerText = `${e.target.value}%`;
+            yamanoteLoops.forEach(l => l.update());
+        });
+
+        window.setStationMode = function(mode, el) {
+            stationDisplayMode = mode;
+            el.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            yamanoteLoops.forEach(l => l.update());
+        };
+
+        map.on('zoomend', () => yamanoteLoops.forEach(l => l.update()));
+
+        window.jumpTo = function(lat, lng, zoom) {
+            map.flyTo([lat, lng], zoom, { duration: 1.0 });
+            if (yamanoteLoops[0]) {
+                yamanoteLoops[0].lat = lat;
+                yamanoteLoops[0].lng = lng;
+                yamanoteLoops[0].centerMarker.setLatLng([lat, lng]);
+                yamanoteLoops[0].update();
+            }
+        };
+
+        window.setTileStyle = function(styleKey, el) {
+            Object.values(tileLayers).forEach(layer => map.removeLayer(layer));
+            tileLayers[styleKey].addTo(map);
+            el.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+        };
+
+        // 地名検索
+        const searchInput = document.getElementById('geo-search');
+        const searchDropdown = document.getElementById('search-dropdown');
+        let searchTimer = null;
+
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            const query = searchInput.value.trim();
+            if (query.length < 2) { searchDropdown.style.display = 'none'; return; }
+
+            searchTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+                    const data = await res.json();
+                    searchDropdown.innerHTML = '';
+                    if (data && data.length > 0) {
+                        data.forEach(item => {
+                            const div = document.createElement('div');
+                            div.className = 'search-item';
+                            div.innerText = item.display_name;
+                            div.addEventListener('click', () => {
+                                jumpTo(parseFloat(item.lat), parseFloat(item.lon), 11);
+                                searchDropdown.style.display = 'none';
+                                searchInput.value = item.display_name.split(',')[0];
+                            });
+                            searchDropdown.appendChild(div);
+                        });
+                        searchDropdown.style.display = 'block';
+                    } else {
+                        searchDropdown.style.display = 'none';
+                    }
+                } catch (e) { console.error(e); }
+            }, 300);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+                searchDropdown.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
